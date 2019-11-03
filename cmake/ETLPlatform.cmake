@@ -10,21 +10,36 @@ set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 message(STATUS "System: ${CMAKE_SYSTEM} (${ETLEGACY_SYSTEM_PROCESSOR})")
 message(STATUS "Lib arch: ${CMAKE_LIBRARY_ARCHITECTURE}")
-
-if(UNIX AND CROSS_COMPILE32 AND NOT ARM) # 32-bit build
-	set(CMAKE_SYSTEM_PROCESSOR i386)
-	message(STATUS "Forcing ${CMAKE_SYSTEM_PROCESSOR} to cross compile 32bit")
-	set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
-	set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -m32")
-	set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m32")
-	set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m32")
-elseif(WIN32 AND CROSS_COMPILE32)
-	set(CMAKE_SYSTEM_PROCESSOR x86) #the new cmake on windows will otherwise use arch name of x64 which will fuck up our naming
-	set(ENV{PLATFORM} win32) #this is redundant but just to  be safe
-elseif(ARM AND CROSS_COMPILE32)
-	message(STATUS "Cross compiling not supported for ARM!")
+if(CROSS_COMPILE32)
+	if(ARM)
+		message(STATUS "Cross compiling not supported for ARM!")
+	elseif(UNIX) # 32-bit build
+		set(CMAKE_SYSTEM_PROCESSOR i386)
+		message(STATUS "Forcing ${CMAKE_SYSTEM_PROCESSOR} to cross compile 32bit")
+		set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS OFF)
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
+		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
+		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -m32")
+		set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m32")
+		set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m32")
+		set(ETL_OSX_ARCHS "i386;x86_64") #fixes cgame & ui modules
+	elseif(WIN32)
+		set(CMAKE_SYSTEM_PROCESSOR x86) #the new cmake on windows will otherwise use arch name of x64 which will fuck up our naming
+		set(ENV{PLATFORM} win32) #this is redundant but just to  be safe
+	endif()
+else() #ie compiling for 64bit systems
+	if(APPLE)
+			set(CMAKE_SYSTEM_PROCESSOR x86_64)
+			#set(ARCH "x86_64")
+			message(STATUS "Forcing ${CMAKE_SYSTEM_PROCESSOR} to cross compile 64bit")
+			set_property(GLOBAL PROPERTY FIND_LIBRARY_USE_LIB64_PATHS ON)
+			set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
+			set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
+			set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -m64")
+			set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m64")
+			set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m64")
+			set(ETL_OSX_ARCHS "x86_64") #fixes cgame & ui modules
+	endif()
 endif()
 
 # FIXME: move this down to UNIX section?
@@ -45,6 +60,9 @@ endif(ARM)
 if(APPLE)
 	# The ioapi requires this since OSX already uses 64 fileapi (there is no fseek64 etc)
 	add_definitions(-DUSE_FILE32API)
+
+	#not sure if this is the best place to add these, but they're needed for C++ builds
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -stdlib=libc++ -lstdc++")
 endif(APPLE)
 
 if(UNIX)
@@ -78,9 +96,11 @@ if(UNIX)
 
 		# Must specify a target, otherwise it will require the OS version used at compile time.
 		set(CMAKE_OSX_DEPLOYMENT_TARGET "10.7")
-		execute_process(COMMAND xcrun -show-sdk-path OUTPUT_VARIABLE XCODE_SDK_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
-		set(CMAKE_OSX_SYSROOT "${XCODE_SDK_PATH}")
-		set(CMAKE_CXX_FLAGS "-isysroot ${CMAKE_OSX_SYSROOT} ${CMAKE_CXX_FLAGS}")
+
+		#CMake seems to take care of this automatically? Maybe it used to be needed, but now just causes the build to fail
+#		execute_process(COMMAND xcrun -show-sdk-path OUTPUT_VARIABLE XCODE_SDK_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+#		set(CMAKE_OSX_SYSROOT "${XCODE_SDK_PATH}")
+#		set(CMAKE_CXX_FLAGS "-isysroot ${CMAKE_OSX_SYSROOT} ${CMAKE_CXX_FLAGS}")
 
 		if(BUILD_CLIENT)
 			set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -framework Quartz -framework AudioToolbox -framework AudioUnit -framework Carbon -framework CoreAudio -framework ForceFeedback -liconv")
